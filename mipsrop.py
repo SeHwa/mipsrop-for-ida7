@@ -719,18 +719,23 @@ class mipsropfinder_t(idaapi.plugin_t):
     help = ""
     wanted_name = "MIPS ROP Finder"
     wanted_hotkey = ""
+    action_desc = ""
 
     def init(self):
         if idaapi.IDA_SDK_VERSION >= 700:
             action_desc = idaapi.action_desc_t("act:mipsrop", "mips rop gadgets", MIPSROPHandler(), "", "Find mips rop gadgets",)
             idaapi.register_action(action_desc)
-            idaapi.attach_action_to_menu("Search/", "act:mipsrop", idaapi.SETMENU_POSMASK)
+            idaapi.attach_action_to_menu("Search/", "act:mipsrop", idaapi.SETMENU_FIRST)
         else:
             self.menu_context = idaapi.add_menu_item("Search/", "mips rop gadgets", "", 0, self.run, (None,))
         return idaapi.PLUGIN_KEEP
 
     def term(self):
-        idaapi.del_menu_item(self.menu_context)
+        if idaapi.IDA_SDK_VERSION >= 700:
+            idaapi.detach_action_from_menu("Search/", "act:mipsrop")
+            idaapi.unregister_action("act:mipsrop")
+        else:
+            idaapi.del_menu_item(self.menu_context)
         return None
 
     def run(self, arg):
