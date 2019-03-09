@@ -263,11 +263,18 @@ class MIPSROPFinder(object):
         if mnem and mnem[0] in bad_instructions:
             bad = True
         else:
-            for register in no_clobber:
-                if (idaapi.insn_t_get_canon_feature(idaapi.cmd.itype) & idaapi.CF_CHG1) == idaapi.CF_CHG1:
-                    if idc.GetOpnd(ea, 0) == register:
-                        bad = True
-
+            if idaapi.IDA_SDK_VERSION < 700:
+                for register in no_clobber:
+                    if (idaapi.insn_t_get_canon_feature(idaapi.cmd.itype) & idaapi.CF_CHG1) == idaapi.CF_CHG1:
+                        if idc.GetOpnd(ea, 0) == register:
+                            bad = True
+            else:
+                insn = idaapi.insn_t()
+                insn.itype = idaapi.cmd.itype
+                for register in no_clobber:
+                    if (insn.get_canon_feature() & idaapi.CF_CHG1) == idaapi.CF_CHG1:
+                        if idc.GetOpnd(ea, 0) == register:
+                            bad = True
         return bad
 
     def _contains_bad_instruction(self, start_ea, end_ea, bad_instructions=['j', 'b'], no_clobber=[]):
@@ -691,6 +698,20 @@ class MIPSROPFinder(object):
         print delim
         print self.summary.__doc__
 
+try:
+    class MIPSROPHandler(idaapi.action_handler_t):
+        def __init__(self):
+            idaapi.action_handler_t.__init__(self)
+
+        def activate(self, ctx):
+            global mipsrop
+            mipsrop = MIPSROPFinder()
+            return 1
+
+        def update(self, ctx):
+            return idaapi.AST_ENABLE_ALWAYS
+except AttributeError:
+    pass
 
 class mipsropfinder_t(idaapi.plugin_t):
     flags = 0
@@ -700,7 +721,12 @@ class mipsropfinder_t(idaapi.plugin_t):
     wanted_hotkey = ""
 
     def init(self):
-        self.menu_context = idaapi.add_menu_item("Search/", "mips rop gadgets", "", 0, self.run, (None,))
+        if idaapi.IDA_SDK_VERSION >= 700:
+            action_desc = idaapi.action_desc_t("act:mipsrop", "mips rop gadgets", MIPSROPHandler(), "", "Find mips rop gadgets",)
+            idaapi.register_action(action_desc)
+            idaapi.attach_action_to_menu("Search/", "act:mipsrop", idaapi.SETMENU_POSMASK)
+        else:
+            self.menu_context = idaapi.add_menu_item("Search/", "mips rop gadgets", "", 0, self.run, (None,))
         return idaapi.PLUGIN_KEEP
 
     def term(self):
